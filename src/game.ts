@@ -1,4 +1,6 @@
 import { Howl } from "howler";
+import { db, ref, set, onValue } from "./firebase";
+import { DataSnapshot } from "firebase/database";
 
 const START_SPEED = 0.004;
 const MAX_SPEED = 0.012;
@@ -15,12 +17,17 @@ export type Particle = {
 };
 
 export type GameState = {
-  type: "instructions" | "playing" | "gameover";
+  type: "instructions" | "playing" | "gameover" | "nameEntry";
   score: number;
   ballAngle: number;
   dir: 1 | -1;
   targetAngle: number;
   particles: Particle[];
+  userId?: string;
+  showLeaderboard: boolean;
+  name?: string;
+  confetti: boolean;
+  rank?: number;
 };
 
 export const initialState: GameState = {
@@ -30,6 +37,8 @@ export const initialState: GameState = {
   dir: -1,
   targetAngle: Math.random() * 2 * Math.PI,
   particles: [],
+  showLeaderboard: false,
+  confetti: false,
 };
 
 export function isOnTarget(state: GameState) {
@@ -52,7 +61,7 @@ export function tick(dt: number, state: GameState) {
 export function press(state: GameState) {
   if (state.type === "instructions") {
     state.type = "playing";
-  } else if (state.type === "playing") { // Changed from "gameover" check
+  } else if (state.type === "playing") {
     if (isOnTarget(state)) {
       hitmarkerSound.play();
       state.score++;
@@ -60,18 +69,65 @@ export function press(state: GameState) {
       state.targetAngle = Math.random() * 2 * Math.PI;
     } else {
       missSound.play();
-      state.type = "gameover";
+      checkLeaderboard(state);
+      state.type = state.score > 10 ? "nameEntry" : "gameover";
     }
   }
 }
 
-export function restart(state: GameState) { // New function for restart
+export function restart(state: GameState) {
   state.type = "playing";
   state.score = 0;
   state.ballAngle = 0;
   state.dir = -1;
   state.targetAngle = Math.random() * 2 * Math.PI;
   state.particles = [];
+  state.showLeaderboard = false;
+  state.confetti = false;
+  state.name = undefined;
+  state.rank = undefined;
+}
+
+export function submitName(state: GameState, name: string) {
+  console.log("submitName called with:", { name, userId: state.userId, type: state.type });
+  if (state.userId && state.type === "nameEntry" && name.trim()) {
+    console.log("Submitting to Firebase:", { name: name.trim(), score: state.score });
+    set(ref(db, `leaderboard/${state.userId}`), {
+      name: name.trim(),
+      score: state.score,
+    })
+      .then(() => {
+        console.log("Submitted successfully");
+        state.type = "gameover";
+      })
+      .catch((error) => console.error("Submit failed:", error));
+  } else {
+    console.log("Submit skipped:", {
+      userId: state.userId,
+      type: state.type,
+      name: name,
+    });
+  }
+}
+
+export function toggleLeaderboard(state: GameState) {
+  state.showLeaderboard = !state.showLeaderboard;
+}
+
+function checkLeaderboard(state: GameState) {
+  onValue(ref(db, "leaderboard"), (snapshot: DataSnapshot) => {
+    const data = snapshot.val() || {};
+    const scores = Object.entries(data)
+      .map(([id, entry]: [string, any]) => ({ id, name: entry.name, score: entry.score }))
+      .sort((a, b) => b.score - a.score);
+    const playerEntry = { id: state.userId || "", name: "", score: state.score };
+    const allScores = [...scores, playerEntry];
+    allScores.sort((a, b) => b.score - a.score);
+    const playerRank = allScores.findIndex((s) => s.id === state.userId) + 1 || allScores.length;
+    state.rank = playerRank;
+    state.confetti = state.score > 10 && (playerRank <= 10 || scores.length < 10);
+    console.log("Rank:", state.rank, "Confetti:", state.confetti, "Scores:", scores.length);
+  }, { onlyOnce: true });
 }
 
 const angleToPos = (angle: number) => ({

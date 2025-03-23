@@ -9,11 +9,14 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/howler": "^2.2.12",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.3",
+    "firebase": "^11.5.0",
     "howler": "^2.2.4"
   }
 }
