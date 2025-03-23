@@ -37,8 +37,9 @@ export function draw(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillText(state.score.toString(), 50, 45);
 
   // Leaderboard button (top left)
-  ctx.fillStyle = "#FFD700";
-  drawCrown(ctx, 5, 5, 5);
+  const crownImg = new Image();
+  crownImg.src = "https://img.icons8.com/lollipop/48/crown.png";
+  ctx.drawImage(crownImg, 5, 5, 5, 5);
   if (state.showLeaderboard) drawLeaderboard(ctx, state);
 
   // Confetti for top 10
@@ -94,33 +95,30 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, wi
   ctx.fill();
 }
 
-function drawCrown(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
-  ctx.beginPath();
-  ctx.moveTo(x, y + size);
-  ctx.lineTo(x + size / 3, y);
-  ctx.lineTo(x + size / 2, y + size / 2);
-  ctx.lineTo(x + 2 * size / 3, y);
-  ctx.lineTo(x + size, y + size);
-  ctx.closePath();
-  ctx.fill();
-}
-
 function drawLeaderboard(ctx: CanvasRenderingContext2D, state: GameState) {
+  ctx.fillStyle = "#008080"; // Teal background
+  drawRoundedRect(ctx, 5, 10, 40, 55, 2); // Dropdown below button
   onValue(ref(db, "leaderboard"), (snapshot) => {
     const data = snapshot.val() || {};
     const scores = Object.values(data)
-      .sort((a: any, b: any) => b.score - a.score)
+      .map((entry: any) => ({
+        name: entry.name,
+        score: entry.score
+      }))
+      .sort((a, b) => b.score - a.score)
       .slice(0, 10);
-    ctx.fillStyle = "white";
     ctx.font = "bold 4px sans-serif";
-    scores.forEach((entry: any, i: number) => {
-      ctx.fillStyle = i < 3 ? "#FFD700" : "white";
-      ctx.fillText(`${i + 1}. ${entry.name}: ${entry.score}`, 50, 20 + i * 5);
-    });
-    if (state.rank && state.rank > 10) {
+    if (scores.length === 0) {
       ctx.fillStyle = "white";
-      ctx.fillText(`Your Rank: ${state.rank}`, 50, 75);
+      ctx.fillText("No scores yet", 7, 15);
+    } else {
+      scores.forEach((entry, i) => {
+        ctx.fillStyle = i < 3 ? "#FFD700" : "white"; // Gold for top 3
+        ctx.fillText(`${i + 1}. ${entry.name}: ${entry.score}`, 7, 15 + i * 5);
+      });
     }
+    ctx.fillStyle = "white";
+    ctx.fillText(`Your Rank: ${state.rank || "N/A"}`, 7, 60);
   }, { onlyOnce: true });
 }
 

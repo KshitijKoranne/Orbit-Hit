@@ -91,10 +91,13 @@ export function restart(state: GameState) {
 export function submitName(state: GameState, name: string) {
   console.log("submitName called with:", { name, userId: state.userId, type: state.type });
   if (state.userId && state.type === "nameEntry" && name.trim()) {
+    const timestamp = Date.now();
     console.log("Submitting to Firebase:", { name: name.trim(), score: state.score });
-    set(ref(db, `leaderboard/${state.userId}`), {
+    set(ref(db, `leaderboard/${timestamp}`), {
       name: name.trim(),
       score: state.score,
+      timestamp: timestamp,
+      userId: state.userId
     })
       .then(() => {
         console.log("Submitted successfully");
@@ -117,16 +120,23 @@ export function toggleLeaderboard(state: GameState) {
 function checkLeaderboard(state: GameState) {
   onValue(ref(db, "leaderboard"), (snapshot: DataSnapshot) => {
     const data = snapshot.val() || {};
-    const scores = Object.entries(data)
-      .map(([id, entry]: [string, any]) => ({ id, name: entry.name, score: entry.score }))
+    const allScores = Object.values(data)
+      .map((entry: any) => ({
+        name: entry.name,
+        score: entry.score,
+        userId: entry.userId
+      }))
       .sort((a, b) => b.score - a.score);
-    const playerEntry = { id: state.userId || "", name: "", score: state.score };
-    const allScores = [...scores, playerEntry];
+    
+    allScores.push({ name: state.name || "", score: state.score, userId: state.userId || "" });
     allScores.sort((a, b) => b.score - a.score);
-    const playerRank = allScores.findIndex((s) => s.id === state.userId) + 1 || allScores.length;
+    
+    const playerRank = state.userId
+      ? allScores.findIndex((s) => s.userId === state.userId && s.score === state.score) + 1 || allScores.length
+      : allScores.length;
     state.rank = playerRank;
-    state.confetti = state.score > 10 && (playerRank <= 10 || scores.length < 10);
-    console.log("Rank:", state.rank, "Confetti:", state.confetti, "Scores:", scores.length);
+    state.confetti = state.score > 10 && (playerRank <= 10 || allScores.length < 10);
+    console.log("Rank:", state.rank, "Confetti:", state.confetti, "Total Scores:", allScores.length);
   }, { onlyOnce: true });
 }
 
