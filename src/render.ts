@@ -3,6 +3,24 @@ import { db, ref, onValue } from "./firebase";
 import confetti from "canvas-confetti";
 
 let lastConfettiTime = 0;
+let leaderboardCache: { name: string; score: number }[] = [];
+
+function updateLeaderboardCache() {
+  onValue(ref(db, "leaderboard"), (snapshot) => {
+    const data = snapshot.val() || {};
+    leaderboardCache = Object.values(data)
+      .map((entry: any) => ({
+        name: entry.name,
+        score: entry.score
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    console.log("Leaderboard updated:", leaderboardCache);
+  }, { onlyOnce: true });
+}
+
+// Initial fetch
+updateLeaderboardCache();
 
 export function draw(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.clearRect(0, 0, 100, 100);
@@ -96,30 +114,22 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, wi
 }
 
 function drawLeaderboard(ctx: CanvasRenderingContext2D, state: GameState) {
-  ctx.fillStyle = "#008080"; // Teal background
-  drawRoundedRect(ctx, 5, 10, 40, 55, 2); // Dropdown below button
-  onValue(ref(db, "leaderboard"), (snapshot) => {
-    const data = snapshot.val() || {};
-    const scores = Object.values(data)
-      .map((entry: any) => ({
-        name: entry.name,
-        score: entry.score
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-    ctx.font = "bold 4px sans-serif";
-    if (scores.length === 0) {
-      ctx.fillStyle = "white";
-      ctx.fillText("No scores yet", 7, 15);
-    } else {
-      scores.forEach((entry, i) => {
-        ctx.fillStyle = i < 3 ? "#FFD700" : "white"; // Gold for top 3
-        ctx.fillText(`${i + 1}. ${entry.name}: ${entry.score}`, 7, 15 + i * 5);
-      });
-    }
+  ctx.fillStyle = "#008080";
+  drawRoundedRect(ctx, 5, 15, 40, 45, 2); // y: 15-60, height reduced to 45
+  ctx.font = "bold 2px sans-serif";
+  ctx.textAlign = "left";
+  if (leaderboardCache.length === 0) {
     ctx.fillStyle = "white";
-    ctx.fillText(`Your Rank: ${state.rank || "N/A"}`, 7, 60);
-  }, { onlyOnce: true });
+    ctx.fillText("No scores yet", 18, 18);
+  } else {
+    leaderboardCache.forEach((entry, i) => {
+      ctx.fillStyle = i < 3 ? "#FFD700" : "white";
+      ctx.fillText(`${i + 1}. ${entry.name}: ${entry.score}`, 18, 18 + i * 3); // Reduced spacing to 3px
+    });
+  }
+  ctx.fillStyle = "white";
+  ctx.fillText(`Your Rank: ${state.rank || "N/A"}`, 18, 53); // Adjusted for new height
+  ctx.textAlign = "start";
 }
 
 const angleToPos = (angle: number) => ({
